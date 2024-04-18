@@ -38,7 +38,7 @@ async def upload_photo(file: UploadFile = File(...)):
     DEFAULT_SIZE = [250, 250]
     
     if (DEFAULT_SIZE is not None ):
-        image = image.resize (DEFAULT_SIZE , Image.ANTIALIAS )
+        image = image.resize (DEFAULT_SIZE , Image.LANCZOS )
     test_image = np. asarray (image , dtype =np. uint8 )
     predicted = predict(eigenvectors, mean , projections, y, test_image)
 
