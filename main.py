@@ -22,7 +22,7 @@ def read_root():
 async def upload_photo(file: UploadFile = File(...)):
     upload_folder_path = os.path.join(os.getcwd(), UPLOAD_FOLDER)
     file_path = os.path.join(upload_folder_path, file.filename)
-    save_uploaded_file(file, file_path)
+    save_uploaded_file(file, file_path) 
 
     [X, y] = read_images()
 
@@ -42,12 +42,8 @@ async def upload_photo(file: UploadFile = File(...)):
     test_image = np. asarray (image , dtype =np. uint8 )
     predicted = predict(eigenvectors, mean , projections, y, test_image)
 
-
-
-
     return {"filename": file.filename, "content_type": file.content_type, "file_path": file_path, "predict": y[predicted]}
 
 def save_uploaded_file(file, destination):
     with open(destination, "wb") as f:
         f.write(file.file.read())
-

@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
 
-IMAGE_DIR = '/Users/adith/skripsi/backend-eigenface/training-images'
+IMAGE_DIR = './training-images'
 DEFAULT_SIZE = [250, 250]
 
 def read_images(image_path=IMAGE_DIR, default_size=DEFAULT_SIZE):
@@ -21,7 +21,7 @@ def read_images(image_path=IMAGE_DIR, default_size=DEFAULT_SIZE):
             image = image.convert ("L")
             # resize to given size (if given )
             if (default_size is not None ):
-                image = image.resize (default_size , Image.ANTIALIAS )
+                image = image.resize (default_size , Image.LANCZOS )
             images.append(np.asarray (image , dtype =np. uint8 ))
             images_names.append(image_dir)
     return [images,images_names]
@@ -116,7 +116,7 @@ def reconstruct (W , Y , mu) :
     return np.dot (Y , W.T) + mu
 
 
-[X_small, y_small] = read_images(image_path="/Users/adith/skripsi/backend-eigenface/training-images-small")
+[X_small, y_small] = read_images(image_path="./training-images-small")
 [eigenvalues_small, eigenvectors_small, mean_small] = pca (as_row_matrix(X_small), y_small)
 
 steps =[i for i in range (eigenvectors_small.shape[1])]
@@ -151,10 +151,10 @@ projections = []
 for xi in X:
     projections.append(project (eigenvectors, xi.reshape(1 , -1) , mean))
 
-image = Image.open("/Users/adith/skripsi/backend-eigenface/training-images-small/Adit_H/adit.jpg")
+image = Image.open("./training-images-small/Adit_H/adit.jpg")
 image = image.convert ("L")
 if (DEFAULT_SIZE is not None ):
-    image = image.resize (DEFAULT_SIZE , Image.ANTIALIAS )
+    image = image.resize (DEFAULT_SIZE , Image.LANCZOS )
 test_image = np. asarray (image , dtype =np. uint8 )
 predicted = predict(eigenvectors, mean , projections, y, test_image)
 
