@@ -37,12 +37,8 @@ def decode_base64_to_image(base64_string, output_path):
 def extract_images_from_video(video_path, output_directory, npk, options={}):
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)  # Create the output directory if it doesn't exist
-
-    # ffmpeg.input(video_path)\
-    #     .output(os.path.join(output_directory, npk+'_%03d.png'), vf='select=not(mod(n\\,30))', vsync='vfr')\
-    #     .run()
     ffmpeg.input(video_path)\
-        .output(os.path.join(output_directory, npk+'_%03d.png'), vf='fps=2', vsync='vfr')\
+        .output(os.path.join(output_directory, npk+'_%03d.png'), vf='select=not(mod(n\\,30))', vsync='vfr')\
         .run()
 
 @app.get("/")
