@@ -99,8 +99,18 @@ async def upload_photo(file: str = Form(...), npk : str = Form(...)):
 
     face = face_classifier.detectMultiScale(gray_image, scaleFactor=1.1, minNeighbors=5, minSize=(40, 40))
 
-    for (x, y, w, h) in face:
-        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 4)
+    opt = "uploads/"
+
+    for i, (x, y, w, h) in enumerate(face):
+        # cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 4)
+        # Crop the face region from the original image
+        cropped_face = img[y:y+h, x:x+w]
+        
+        # Save the cropped face as a separate image
+        output_face_path = opt + f"{npk}.jpeg"
+        cv2.imwrite(output_face_path, cropped_face)
+        
+        print(f"Face {i+1} saved successfully to:", output_face_path)
     
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
@@ -133,7 +143,6 @@ async def upload_photo(file: str = Form(...), npk : str = Form(...)):
         predicted = predict(eigenvectors, mean , projections, y, test_image)
 
         return {"filename": npk, "file_path": file_path, "predict": y[predicted]}
-    
     else:
         return {"message": "No faces detected", "output": output_path, "contains_face": False}
     
@@ -142,8 +151,22 @@ async def upload_photo(file: str = Form(...), npk : str = Form(...)):
     
 
 def save_uploaded_file(file, destination):
-    with open(destination, "wb") as image_file:
-        image_file.write(base64.b64decode(file))    
+    # with open(destination, "wb") as image_file:
+    #     image_file.write(base64.b64decode(file))    
+    # Decode the base64-encoded image data
+    image_data = base64.b64decode(file)
+    
+    # Convert the image data to a numpy array
+    nparr = np.frombuffer(image_data, np.uint8)
+    
+    # Decode the image using OpenCV
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    
+    # Convert the image to grayscale
+    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    
+    # Save the grayscale image
+    cv2.imwrite(destination, gray_img)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
