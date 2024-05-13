@@ -10,6 +10,7 @@ import ffmpeg
 import uvicorn
 import base64
 import imghdr
+import cv2
 
 app = FastAPI()
 
@@ -86,27 +87,59 @@ async def upload_photo(file: str = Form(...), npk : str = Form(...)):
 
     upload_folder_path = os.path.join(os.getcwd(), UPLOAD_FOLDER)
     file_path = os.path.join(upload_folder_path, npk + extension)
+
     save_uploaded_file(file, file_path) 
 
-    [X, y] = read_images()
+    ## start detect face
+    img = cv2.imread(file_path)
 
-    [eigenvalues, eigenvectors, mean] = pca (as_row_matrix(X), y)
+    gray_image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    face_classifier = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+
+    face = face_classifier.detectMultiScale(gray_image, scaleFactor=1.1, minNeighbors=5, minSize=(40, 40))
+
+    for (x, y, w, h) in face:
+        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 4)
     
-    projections = []
-    for xi in X:
-        projections.append(project (eigenvectors, xi.reshape(1 , -1) , mean))
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-    image = Image.open(file_path)
-    image = image.convert ("L")
+    plt.figure(figsize=(20,10))
+    plt.imshow(img_rgb)
+    plt.axis('off') 
 
-    DEFAULT_SIZE = [250, 250]
+    # Save the image
+    output_path = os.path.join("uploads/", "detected_faces.jpg")
+    cv2.imwrite(output_path, cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR))
+
+        # Check if any faces are detected
+    if len(face) > 0:
+        [X, y] = read_images()
+
+        [eigenvalues, eigenvectors, mean] = pca (as_row_matrix(X), y)
+        
+        projections = []
+        for xi in X:
+            projections.append(project (eigenvectors, xi.reshape(1 , -1) , mean))
+
+        image = Image.open(file_path)
+        image = image.convert ("L")
+
+        DEFAULT_SIZE = [250, 250]
+        
+        if (DEFAULT_SIZE is not None ):
+            image = image.resize (DEFAULT_SIZE , Image.LANCZOS )
+        test_image = np. asarray (image , dtype =np. uint8 )
+        predicted = predict(eigenvectors, mean , projections, y, test_image)
+
+        return {"filename": npk, "file_path": file_path, "predict": y[predicted]}
     
-    if (DEFAULT_SIZE is not None ):
-        image = image.resize (DEFAULT_SIZE , Image.LANCZOS )
-    test_image = np. asarray (image , dtype =np. uint8 )
-    predicted = predict(eigenvectors, mean , projections, y, test_image)
+    else:
+        return {"message": "No faces detected", "output": output_path, "contains_face": False}
+    
+    ## end detect face
 
-    return {"filename": npk, "file_path": file_path, "predict": y[predicted]}
+    
 
 def save_uploaded_file(file, destination):
     with open(destination, "wb") as image_file:
