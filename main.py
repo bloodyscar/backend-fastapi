@@ -36,6 +36,28 @@ def decode_base64_to_image(base64_string, output_path):
     with open(output_path, "wb") as image_file:
         image_file.write(base64.b64decode(base64_string))
 
+def draw_ped(img, label, x0, y0, xt, yt, color=(255,127,0), text_color=(255,255,255)):
+
+    (w, h), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+    cv2.rectangle(img,
+                  (x0, y0 + baseline),  
+                  (max(xt, x0 + w), yt), 
+                  color, 
+                  2)
+    cv2.rectangle(img,
+                  (x0, y0 - h),  
+                  (x0 + w, y0 + baseline), 
+                  color, 
+                  -1)  
+    cv2.putText(img, 
+                label, 
+                (x0, y0),                   
+                cv2.FONT_HERSHEY_SIMPLEX,     
+                0.5,                          
+                text_color,                
+                1,
+                cv2.LINE_AA) 
+    return img
 
 # cv2 videocapture
 def vc_extract_images_from_video(video_path, output_directory, base_name, frame_interval=30, max_frames=72):
@@ -109,6 +131,24 @@ async def check_face(npk : str = Form(...)):
     except Exception as e:
         return {"error": str(e)}
 
+# function stream
+def detect_faces_in_video(video_stream):
+    face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+    for frame in video_stream:
+        # Convert frame to OpenCV format
+        img = cv2.imdecode(frame, cv2.IMREAD_COLOR)
+        # Perform face detection
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        faces = face_cascade.detectMultiScale(gray, 1.1, 5)
+        # Process detected faces
+        detected_faces = []
+        for (x, y, w, h) in faces:
+            detected_faces.append({'x': x, 'y': y, 'width': w, 'height': h})
+        yield detected_faces
+# STREAM VIDEO DETECT FACE
+@app.post('/detect_faces_stream')
+async def detect_faces_stream(video_stream: bytes = File(...)):
+    return list(detect_faces_in_video([video_stream]))
 
 @app.post("/upload-photo")
 async def upload_photo(file: str = Form(...), npk : str = Form(...)):
@@ -255,6 +295,32 @@ async def predict_photo(file: str = Form(...), npk : str = Form(...)):
 
     print("Found: ", labels[idx])
     print("Confidence: ", confidence)
+    face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+    cap = cv2.VideoCapture(0)
+    while cap.isOpened() :
+        ret, frame = cap.read()
+        if ret:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces = face_cascade.detectMultiScale(gray, 1.1, 5)
+            for (x, y, w, h) in faces:
+                
+                face_img = gray[y:y+h, x:x+w]
+                face_img = cv2.resize(face_img, (100, 100))
+                
+                idx, confidence = model.predict(face_img)
+                label_text = "%s (%.2f %%)" % (labels[idx], confidence)
+                
+                frame = draw_ped(frame, label_text, x, y, x + w, y + h, color=(0,255,255), text_color=(50,50,50))
+        
+            cv2.imshow('Detect Face', frame)
+        else :
+            break
+        if cv2.waitKey(10) == ord('q'):
+            break
+            
+    cv2.destroyAllWindows()
+    cap.release()
+
 
     return {"filename": npk, "file_path": file_path, "predict": labels[idx], "confidence": confidence}
     # return {"filename": npk, "file_path": file_path}
