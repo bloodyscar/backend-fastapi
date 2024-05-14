@@ -131,25 +131,6 @@ async def check_face(npk : str = Form(...)):
     except Exception as e:
         return {"error": str(e)}
 
-# function stream
-def detect_faces_in_video(video_stream):
-    face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
-    for frame in video_stream:
-        # Convert frame to OpenCV format
-        img = cv2.imdecode(frame, cv2.IMREAD_COLOR)
-        # Perform face detection
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(gray, 1.1, 5)
-        # Process detected faces
-        detected_faces = []
-        for (x, y, w, h) in faces:
-            detected_faces.append({'x': x, 'y': y, 'width': w, 'height': h})
-        yield detected_faces
-# STREAM VIDEO DETECT FACE
-@app.post('/detect_faces_stream')
-async def detect_faces_stream(video_stream: bytes = File(...)):
-    return list(detect_faces_in_video([video_stream]))
-
 @app.post("/upload-photo")
 async def upload_photo(file: str = Form(...), npk : str = Form(...)):
     
