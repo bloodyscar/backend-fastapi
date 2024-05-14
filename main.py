@@ -6,6 +6,7 @@ import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
 from eigenfaces_model import read_images, as_row_matrix, pca, project, predict, subplot
+from new_eigenfaces import show_dataset, detect_face
 import ffmpeg
 import uvicorn
 import base64
@@ -35,6 +36,32 @@ def decode_base64_to_image(base64_string, output_path):
     with open(output_path, "wb") as image_file:
         image_file.write(base64.b64decode(base64_string))
 
+
+# cv2 videocapture
+def vc_extract_images_from_video(video_path, output_directory, base_name, frame_interval=30, max_frames=72):
+    if not os.path.exists(output_directory):
+        os.makedirs(output_directory)  # Create the output directory if it doesn't exist
+
+    cap = cv2.VideoCapture(video_path)  # Open the video file
+    i = 0
+    frame_count = 0
+
+    while cap.isOpened() and i < max_frames:
+        ret, frame = cap.read()
+
+        if not ret:
+            break
+
+        # Save frame at specified intervals
+        if frame_count % frame_interval == 0:
+            cv2.imwrite(os.path.join(output_directory, f"{base_name}_{i:04d}.jpg"), frame)
+            i += 1
+
+        frame_count += 1
+
+    cap.release()
+    cv2.destroyAllWindows()
+
 def extract_images_from_video(video_path, output_directory, npk, options={}):
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)  # Create the output directory if it doesn't exist
@@ -50,6 +77,7 @@ def read_root():
 @app.post("/register_face")
 async def save_image(npk : str = Form(...), video: UploadFile = File(...), ):
     try:
+
         with open(f"uploads/{video.filename}", "wb") as buffer:
             shutil.copyfileobj(video.file, buffer)
 
@@ -59,10 +87,12 @@ async def save_image(npk : str = Form(...), video: UploadFile = File(...), ):
         output_directory = "training-images/" + npk
 
         extract_images_from_video(video_path, output_directory, npk)
+
         print('Images extracted successfully.')
 
     # Delete the uploaded file after successful image extraction
         os.remove(video_path)
+        
         return {"message": "Image saved successfully"}
     except Exception as e:
         return {"error": str(e)}
@@ -148,6 +178,87 @@ async def upload_photo(file: str = Form(...), npk : str = Form(...)):
     
     ## end detect face
 
+# new model eigenfaces
+@app.post("/predict-photo")
+async def predict_photo(file: str = Form(...), npk : str = Form(...)):
+    
+    extension = get_image_extension_from_base64(file)
+
+    upload_folder_path = os.path.join(os.getcwd(), UPLOAD_FOLDER)
+    file_path = os.path.join(upload_folder_path, npk + extension)
+
+    save_uploaded_file(file, file_path) 
+
+
+    dataset_folder = 'training-images/'
+
+    names = []
+    images = []
+
+    for folder in os.listdir(dataset_folder):
+        for name in os.listdir(os.path.join(dataset_folder, folder))[:8]: # limit only 70 face per class
+            if name.find(".png") > -1 :
+                img = cv2.imread(os.path.join(dataset_folder + folder, name))
+                images.append(img)
+                names.append(folder)
+
+    # for folder in os.listdir(dataset_folder):
+    #     folder_path = os.path.join(dataset_folder, folder)
+    #     if not os.path.isdir(folder_path):
+    #         continue  # Skip if it's not a directory
+
+    #     for name in os.listdir(folder_path):  # Limit only 70 faces per class if needed
+    #         if name.endswith(".jpg"):  # Ensure only .jpg files are processed
+    #             img_path = os.path.join(folder_path, name)
+    #             img = cv2.imread(img_path)
+    #             if img is not None:  # Ensure the image was read successfully
+    #                 images.append(img)
+    #                 names.append(folder)
+    
+    labels = np.unique(names)
+    for label in labels:
+        ids = np.where(label== np.array(names))[0]
+        images_class = images[ids[0] : ids[-1] + 1]
+        # show_dataset(images_class, label)
+
+
+
+    croped_images = []
+    for i, img in enumerate(images) :
+        img = detect_face(img, i)
+        if img is not None :
+            croped_images.append(img)
+        else :
+            del names[i]
+    
+    for label in labels:
+        ids = np.where(label== np.array(names))[0]
+        images_class = croped_images[ids[0] : ids[-1] + 1] # select croped images for each class
+        # show_dataset(images_class, label)
+
+    name_vec = np.array([np.where(name == labels)[0][0] for name in names])
+
+    model = cv2.face.EigenFaceRecognizer_create()
+
+    model.train(croped_images, name_vec)
+
+    model.save("eigenface.yml")
+
+    model.read("eigenface.yml")
+
+    path = "uploads/" + npk + extension
+
+    img = cv2.imread(path)
+    img = detect_face(img, 0)
+
+    idx, confidence = model.predict(img)
+
+    print("Found: ", labels[idx])
+    print("Confidence: ", confidence)
+
+    return {"filename": npk, "file_path": file_path, "predict": labels[idx], "confidence": confidence}
+    # return {"filename": npk, "file_path": file_path}
+
     
 
 def save_uploaded_file(file, destination):
@@ -170,3 +281,6 @@ def save_uploaded_file(file, destination):
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+    

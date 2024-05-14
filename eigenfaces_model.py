@@ -148,17 +148,17 @@ def predict (W, mu , projections, y, X):
             minClass = i
     return minClass
 
-# projections = []
-# for xi in X:
-#     projections.append(project (eigenvectors, xi.reshape(1 , -1) , mean))
+projections = []
+for xi in X:
+    projections.append(project (eigenvectors, xi.reshape(1 , -1) , mean))
 
-# image = Image.open("./training-images-small/Adit_H/adit.jpg")
-# image = image.convert ("L")
-# if (DEFAULT_SIZE is not None ):
-#     image = image.resize (DEFAULT_SIZE , Image.LANCZOS )
-# test_image = np. asarray (image , dtype =np. uint8 )
-# predicted = predict(eigenvectors, mean , projections, y, test_image)
+image = Image.open("./training-images-small/Adit_H/adit.jpg")
+image = image.convert ("L")
+if (DEFAULT_SIZE is not None ):
+    image = image.resize (DEFAULT_SIZE , Image.LANCZOS )
+test_image = np. asarray (image , dtype =np. uint8 )
+predicted = predict(eigenvectors, mean , projections, y, test_image)
 
-# subplot ( title ="Prediction", images =[test_image, X[predicted]], rows =1, cols =2,
-#          sptitles = ["Unknown image", "Prediction :{0}".format(y[predicted])] , colormap =plt.cm.gray ,
-#          filename ="prediction_test.png", figsize = (5,5))
+subplot ( title ="Prediction", images =[test_image, X[predicted]], rows =1, cols =2,
+         sptitles = ["Unknown image", "Prediction :{0}".format(y[predicted])] , colormap =plt.cm.gray ,
+         filename ="prediction_test.png", figsize = (5,5))
