@@ -1,5 +1,5 @@
 from typing import Union
-from fastapi import FastAPI, File, UploadFile, Form
+from fastapi import FastAPI, File, UploadFile, Form, WebSocket
 import os
 import shutil
 import numpy as np
@@ -12,24 +12,34 @@ import uvicorn
 import base64
 import imghdr
 import cv2
+from pydantic import BaseModel
 
 app = FastAPI()
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+class FaceRecognitionRequest(BaseModel):
+    file: str
+    npk: str
+
 def get_image_extension_from_base64(base64_string):
-    # Decode the base64 string
-    decoded_data = base64.b64decode(base64_string, validate=True)
-    
-    # Use imghdr to determine the image type from the header
-    image_type = imghdr.what(None, decoded_data)
-    
-    if image_type:
-        # Return the appropriate extension based on the image type
-        return f".{image_type}"
-    else:
-        # If imghdr couldn't determine the image type, return None
+    try:
+        
+        # Decode the base64 string
+        decoded_data = base64.b64decode(base64_string, validate=True)
+        
+        # Use imghdr to determine the image type from the header
+        image_type = imghdr.what(None, decoded_data)
+        
+        if image_type:
+            # Return the appropriate extension based on the image type
+            return f".{image_type}"
+        else:
+            # If imghdr couldn't determine the image type, return None
+            return None
+    except Exception as e:
+        print(f"Error getting image extension: {e}")
         return None
     
 def decode_base64_to_image(base64_string, output_path):
@@ -96,6 +106,9 @@ def read_root():
     print("HELo")
     return {"Hello": "World"}
 
+
+
+
 @app.post("/register_face")
 async def save_image(npk : str = Form(...), video: UploadFile = File(...), ):
     try:
@@ -153,13 +166,18 @@ async def upload_photo(file: str = Form(...), npk : str = Form(...)):
     opt = "uploads/"
 
     for i, (x, y, w, h) in enumerate(face):
-        # cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 4)
+        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 4)
+        # Draw text (name) on the image
+        # Draw red text (name) on the image with bigger font size
+        cv2.putText(img, "Alferdian", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 4, cv2.LINE_AA)
+
+        
         # Crop the face region from the original image
-        cropped_face = img[y:y+h, x:x+w]
+        # cropped_face = img[y:y+h, x:x+w]
         
         # Save the cropped face as a separate image
         output_face_path = opt + f"{npk}.jpeg"
-        cv2.imwrite(output_face_path, cropped_face)
+        # cv2.imwrite(output_face_path, cropped_face)
         
         print(f"Face {i+1} saved successfully to:", output_face_path)
     
@@ -202,104 +220,137 @@ async def upload_photo(file: str = Form(...), npk : str = Form(...)):
 # new model eigenfaces
 @app.post("/predict-photo")
 async def predict_photo(file: str = Form(...), npk : str = Form(...)):
-    
-    extension = get_image_extension_from_base64(file)
+    try:
+        extension = get_image_extension_from_base64(file)
 
-    upload_folder_path = os.path.join(os.getcwd(), UPLOAD_FOLDER)
-    file_path = os.path.join(upload_folder_path, npk + extension)
+        upload_folder_path = os.path.join(os.getcwd(), UPLOAD_FOLDER)
+        file_path = os.path.join(upload_folder_path, npk + extension)
 
-    save_uploaded_file(file, file_path) 
-
-
-    dataset_folder = 'training-images/'
-
-    names = []
-    images = []
-
-    for folder in os.listdir(dataset_folder):
-        for name in os.listdir(os.path.join(dataset_folder, folder))[:8]: # limit only 70 face per class
-            if name.find(".png") > -1 :
-                img = cv2.imread(os.path.join(dataset_folder + folder, name))
-                images.append(img)
-                names.append(folder)
-
-    # for folder in os.listdir(dataset_folder):
-    #     folder_path = os.path.join(dataset_folder, folder)
-    #     if not os.path.isdir(folder_path):
-    #         continue  # Skip if it's not a directory
-
-    #     for name in os.listdir(folder_path):  # Limit only 70 faces per class if needed
-    #         if name.endswith(".jpg"):  # Ensure only .jpg files are processed
-    #             img_path = os.path.join(folder_path, name)
-    #             img = cv2.imread(img_path)
-    #             if img is not None:  # Ensure the image was read successfully
-    #                 images.append(img)
-    #                 names.append(folder)
-    
-    labels = np.unique(names)
-    for label in labels:
-        ids = np.where(label== np.array(names))[0]
-        images_class = images[ids[0] : ids[-1] + 1]
-        # show_dataset(images_class, label)
+        save_uploaded_file(file, file_path) 
 
 
+        dataset_folder = 'training-images/'
 
-    croped_images = []
-    for i, img in enumerate(images) :
-        img = detect_face(img, i)
-        if img is not None :
-            croped_images.append(img)
-        else :
-            del names[i]
-    
-    for label in labels:
-        ids = np.where(label== np.array(names))[0]
-        images_class = croped_images[ids[0] : ids[-1] + 1] # select croped images for each class
-        # show_dataset(images_class, label)
+        names = []
+        images = []
 
-    name_vec = np.array([np.where(name == labels)[0][0] for name in names])
+        for folder in os.listdir(dataset_folder):
+            for name in os.listdir(os.path.join(dataset_folder, folder))[:8]: # limit only 70 face per class
+                if name.find(".png") > -1 :
+                    img = cv2.imread(os.path.join(dataset_folder + folder, name))
+                    images.append(img)
+                    names.append(folder)
 
-    model = cv2.face.EigenFaceRecognizer_create()
+        # for folder in os.listdir(dataset_folder):
+        #     folder_path = os.path.join(dataset_folder, folder)
+        #     if not os.path.isdir(folder_path):
+        #         continue  # Skip if it's not a directory
 
-    model.train(croped_images, name_vec)
-
-    model.save("eigenface.yml")
-
-    model.read("eigenface.yml")
-
-    path = "uploads/" + npk + extension
-
-    img = cv2.imread(path)
-    img = detect_face(img, 0)
-
-    idx, confidence = model.predict(img)
-
-    print("Found: ", labels[idx])
-    print("Confidence: ", confidence)
+        #     for name in os.listdir(folder_path):  # Limit only 70 faces per class if needed
+        #         if name.endswith(".jpg"):  # Ensure only .jpg files are processed
+        #             img_path = os.path.join(folder_path, name)
+        #             img = cv2.imread(img_path)
+        #             if img is not None:  # Ensure the image was read successfully
+        #                 images.append(img)
+        #                 names.append(folder)
+        
+        labels = np.unique(names)
+        for label in labels:
+            ids = np.where(label== np.array(names))[0]
+            images_class = images[ids[0] : ids[-1] + 1]
+            # show_dataset(images_class, label)
 
 
-    return {"filename": npk, "file_path": file_path, "predict": labels[idx], "confidence": confidence}
-    # return {"filename": npk, "file_path": file_path}
 
+        croped_images = []
+        for i, img in enumerate(images) :
+            img = detect_face(img, i)
+            if img is not None :
+                croped_images.append(img)
+            else :
+                del names[i]
+        
+        for label in labels:
+            ids = np.where(label== np.array(names))[0]
+            images_class = croped_images[ids[0] : ids[-1] + 1] # select croped images for each class
+            # show_dataset(images_class, label)
+
+        name_vec = np.array([np.where(name == labels)[0][0] for name in names])
+
+        model = cv2.face.EigenFaceRecognizer_create()
+
+        model.train(croped_images, name_vec)
+
+        model.save("eigenface.yml")
+
+        model.read("eigenface.yml")
+
+        path = "uploads/" + npk + extension
+
+        img = cv2.imread(path)
+        img = detect_face(img, 0)
+
+        idx, confidence = model.predict(img)
+
+        print("Found: ", labels[idx])
+        print("Confidence: ", confidence)
+        face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+        cap = cv2.VideoCapture(0)
+        while cap.isOpened() :
+            ret, frame = cap.read()
+            if ret:
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                faces = face_cascade.detectMultiScale(gray, 1.1, 5)
+                for (x, y, w, h) in faces:
+                    
+                    face_img = gray[y:y+h, x:x+w]
+                    face_img = cv2.resize(face_img, (100, 100))
+                    
+                    idx, confidence = model.predict(face_img)
+                    label_text = "%s (%.2f %%)" % (labels[idx], confidence)
+                    
+                    frame = draw_ped(frame, label_text, x, y, x + w, y + h, color=(0,255,255), text_color=(50,50,50))
+            
+                cv2.imshow('Detect Face', frame)
+            else :
+                break
+            if cv2.waitKey(10) == ord('q'):
+                break
+                
+        cv2.destroyAllWindows()
+        cap.release()
+
+
+        return {"filename": npk, "file_path": file_path, "predict": labels[idx], "confidence": confidence}
+        # return {"filename": npk, "file_path": file_path}
+        
+    except Exception as e:
+        print(f"Error saving file: {e}")
+        return False
     
 
 def save_uploaded_file(file, destination):
-    # with open(destination, "wb") as image_file:
-    #     image_file.write(base64.b64decode(file))    
-    # Decode the base64-encoded image data
-    image_data = base64.b64decode(file)
-    
-    # Convert the image data to a numpy array
-    nparr = np.frombuffer(image_data, np.uint8)
-    
-    # Decode the image using OpenCV
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    
-    # Convert the image to grayscale
-    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    
-    # Save the grayscale image
-    cv2.imwrite(destination, gray_img)
+    try:
+            # with open(destination, "wb") as image_file:
+        #     image_file.write(base64.b64decode(file))    
+        # Decode the base64-encoded image data
+        image_data = base64.b64decode(file)
+        
+        # Convert the image data to a numpy array
+        nparr = np.frombuffer(image_data, np.uint8)
+        
+        # Decode the image using OpenCV
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        # Convert the image to grayscale
+        gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # Save the grayscale image
+        cv2.imwrite(destination, gray_img)
+    except Exception as e:
+        print(f"Error saving file: {e}")
+        return False
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
