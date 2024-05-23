@@ -13,6 +13,8 @@ import base64
 import imghdr
 import cv2
 from pydantic import BaseModel
+from fastapi import WebSocket
+import json
 
 app = FastAPI()
 
@@ -27,7 +29,7 @@ def get_image_extension_from_base64(base64_string):
     try:
         
         # Decode the base64 string
-        decoded_data = base64.b64decode(base64_string, validate=True)
+        decoded_data = base64.b64decode(base64_string)
         
         # Use imghdr to determine the image type from the header
         image_type = imghdr.what(None, decoded_data)
@@ -231,59 +233,64 @@ async def predict_photo(file: str = Form(...), npk : str = Form(...)):
 
         dataset_folder = 'training-images/'
 
-        names = []
-        images = []
-
-        for folder in os.listdir(dataset_folder):
-            for name in os.listdir(os.path.join(dataset_folder, folder))[:8]: # limit only 70 face per class
-                if name.find(".png") > -1 :
-                    img = cv2.imread(os.path.join(dataset_folder + folder, name))
-                    images.append(img)
-                    names.append(folder)
+        # names = []
+        # images = []
 
         # for folder in os.listdir(dataset_folder):
-        #     folder_path = os.path.join(dataset_folder, folder)
-        #     if not os.path.isdir(folder_path):
-        #         continue  # Skip if it's not a directory
+        #     for name in os.listdir(os.path.join(dataset_folder, folder))[:8]: # limit only 70 face per class
+        #         if name.find(".png") > -1 :
+        #             img = cv2.imread(os.path.join(dataset_folder + folder, name))
+        #             images.append(img)
+        #             names.append(folder)
 
-        #     for name in os.listdir(folder_path):  # Limit only 70 faces per class if needed
-        #         if name.endswith(".jpg"):  # Ensure only .jpg files are processed
-        #             img_path = os.path.join(folder_path, name)
-        #             img = cv2.imread(img_path)
-        #             if img is not None:  # Ensure the image was read successfully
-        #                 images.append(img)
-        #                 names.append(folder)
+        # # for folder in os.listdir(dataset_folder):
+        # #     folder_path = os.path.join(dataset_folder, folder)
+        # #     if not os.path.isdir(folder_path):
+        # #         continue  # Skip if it's not a directory
+
+        # #     for name in os.listdir(folder_path):  # Limit only 70 faces per class if needed
+        # #         if name.endswith(".jpg"):  # Ensure only .jpg files are processed
+        # #             img_path = os.path.join(folder_path, name)
+        # #             img = cv2.imread(img_path)
+        # #             if img is not None:  # Ensure the image was read successfully
+        # #                 images.append(img)
+        # #                 names.append(folder)
         
-        labels = np.unique(names)
-        for label in labels:
-            ids = np.where(label== np.array(names))[0]
-            images_class = images[ids[0] : ids[-1] + 1]
-            # show_dataset(images_class, label)
+        # labels = np.unique(names)
+        # for label in labels:
+        #     ids = np.where(label== np.array(names))[0]
+        #     images_class = images[ids[0] : ids[-1] + 1]
+        #     # show_dataset(images_class, label)
 
 
 
-        croped_images = []
-        for i, img in enumerate(images) :
-            img = detect_face(img, i)
-            if img is not None :
-                croped_images.append(img)
-            else :
-                del names[i]
+        # croped_images = []
+        # for i, img in enumerate(images) :
+        #     img = detect_face(img, i)
+        #     if img is not None :
+        #         croped_images.append(img)
+        #     else :
+        #         del names[i]
         
-        for label in labels:
-            ids = np.where(label== np.array(names))[0]
-            images_class = croped_images[ids[0] : ids[-1] + 1] # select croped images for each class
-            # show_dataset(images_class, label)
+        # for label in labels:
+        #     ids = np.where(label== np.array(names))[0]
+        #     images_class = croped_images[ids[0] : ids[-1] + 1] # select croped images for each class
+        #     # show_dataset(images_class, label)
 
-        name_vec = np.array([np.where(name == labels)[0][0] for name in names])
+        # name_vec = np.array([np.where(name == labels)[0][0] for name in names])
 
         model = cv2.face.EigenFaceRecognizer_create()
 
-        model.train(croped_images, name_vec)
+        # model.train(croped_images, name_vec)
 
-        model.save("eigenface.yml")
+        # model.save("eigenface.yml")
 
         model.read("eigenface.yml")
+
+        #cv2.model
+
+
+        labels = get_folder_names(dataset_folder)
 
         path = "uploads/" + npk + extension
 
@@ -329,7 +336,85 @@ def save_uploaded_file(file, destination):
         print(f"Error saving file: {e}")
         return False
 
+def get_folder_names(directory):
+    folder_names = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name))]
+    return folder_names
 
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # Parse JSON data
+            json_data = json.loads(data)
+            base64_image = json_data.get("image")
+            npk = json_data.get("npk")
+            print(base64_image)
+
+            extension = get_image_extension_from_base64(base64_image)
+            print(extension)
+
+
+            upload_folder_path = os.path.join(os.getcwd(), UPLOAD_FOLDER)
+            file_path = os.path.join(upload_folder_path, npk + extension)
+
+            save_uploaded_file(base64_image, file_path) 
+
+            dataset_folder = 'training-images/'
+
+            model = cv2.face.EigenFaceRecognizer_create()
+
+            model.read("eigenface.yml")
+
+
+            labels = get_folder_names(dataset_folder)
+
+            path = "uploads/" + npk + extension
+
+            img = cv2.imread(path)
+            img = detect_face(img, 0)
+
+            if img is None:
+                await websocket.send_json({"message": "No faces detected", "contains_face": False})
+                break
+
+            idx, confidence = model.predict(img)
+
+            print("Found: ", labels[idx])
+            print("Confidence: ", confidence)
+
+            # check if labels[idx] is null and confidence is null then return status code 400
+            if labels[idx] is None and confidence is None:
+                response = {"message": "No faces detected", "contains_face": False}
+                await websocket.send_json(response)
+
+            response = {"filename": npk, "file_path": file_path, "predict": labels[idx], "confidence": confidence}
+            await websocket.send_json(response)
+
+    except Exception as e:
+        await websocket.send_json({"status": "error", "message": str(e)})
+
+
+async def process_data(base64_image: str, npk_string: str):
+    try:
+        # Decode base64 image to bytes
+        image_data = base64.b64decode(base64_image)
+        # Convert bytes to numpy array
+        image_np = np.frombuffer(image_data, dtype=np.uint8)
+        # Convert numpy array to PIL Image
+        image = Image.open(io.BytesIO(image_np))
+        
+        # Save the image to disk
+        image.save("received_image.jpg")
+        
+        # Process NPK string (you can implement your logic here)
+        print("Received NPK string:", npk_string)
+        
+        return {"status": "success", "message": "Image and NPK string processed successfully"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+        
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
