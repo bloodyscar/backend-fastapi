@@ -386,8 +386,15 @@ async def websocket_endpoint(websocket: WebSocket):
 
             # check if labels[idx] is null and confidence is null then return status code 400
             if labels[idx] is None and confidence is None:
-                response = {"message": "No faces detected", "contains_face": False}
+                response = {"message": "", "contains_face": False}
                 await websocket.send_json(response)
+
+            
+            # if npk != label[idx] return response 400
+            if npk != labels[idx]:
+                response = { "message": "NPK not found in the database"}
+                await websocket.send_json(response)
+                break
 
             response = {"filename": npk, "file_path": file_path, "predict": labels[idx], "confidence": confidence}
             await websocket.send_json(response)
