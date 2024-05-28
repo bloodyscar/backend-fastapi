@@ -299,6 +299,8 @@ async def predict_photo(file: str = Form(...), npk : str = Form(...)):
 
         idx, confidence = model.predict(img)
 
+        print("FOUND IDX" , idx)
+
         print("Found: ", labels[idx])
         print("Confidence: ", confidence)
 
@@ -380,6 +382,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 break
 
             idx, confidence = model.predict(img)
+            
 
             print("Found: ", labels[idx])
             print("Confidence: ", confidence)
