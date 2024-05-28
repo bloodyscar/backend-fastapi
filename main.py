@@ -233,64 +233,65 @@ async def predict_photo(file: str = Form(...), npk : str = Form(...)):
 
         dataset_folder = 'training-images/'
 
-        # names = []
-        # images = []
+        names = []
+        images = []
+
+        for folder in os.listdir(dataset_folder):
+            for name in os.listdir(os.path.join(dataset_folder, folder))[:8]: # limit only 70 face per class
+                if name.find(".png") > -1 :
+                    img = cv2.imread(os.path.join(dataset_folder + folder, name))
+                    images.append(img)
+                    names.append(folder)
 
         # for folder in os.listdir(dataset_folder):
-        #     for name in os.listdir(os.path.join(dataset_folder, folder))[:8]: # limit only 70 face per class
-        #         if name.find(".png") > -1 :
-        #             img = cv2.imread(os.path.join(dataset_folder + folder, name))
-        #             images.append(img)
-        #             names.append(folder)
+        #     folder_path = os.path.join(dataset_folder, folder)
+        #     if not os.path.isdir(folder_path):
+        #         continue  # Skip if it's not a directory
 
-        # # for folder in os.listdir(dataset_folder):
-        # #     folder_path = os.path.join(dataset_folder, folder)
-        # #     if not os.path.isdir(folder_path):
-        # #         continue  # Skip if it's not a directory
-
-        # #     for name in os.listdir(folder_path):  # Limit only 70 faces per class if needed
-        # #         if name.endswith(".jpg"):  # Ensure only .jpg files are processed
-        # #             img_path = os.path.join(folder_path, name)
-        # #             img = cv2.imread(img_path)
-        # #             if img is not None:  # Ensure the image was read successfully
-        # #                 images.append(img)
-        # #                 names.append(folder)
+        #     for name in os.listdir(folder_path):  # Limit only 70 faces per class if needed
+        #         if name.endswith(".jpg"):  # Ensure only .jpg files are processed
+        #             img_path = os.path.join(folder_path, name)
+        #             img = cv2.imread(img_path)
+        #             if img is not None:  # Ensure the image was read successfully
+        #                 images.append(img)
+        #                 names.append(folder)
         
-        # labels = np.unique(names)
-        # for label in labels:
-        #     ids = np.where(label== np.array(names))[0]
-        #     images_class = images[ids[0] : ids[-1] + 1]
-        #     # show_dataset(images_class, label)
+        labels = np.unique(names)
+        for label in labels:
+            ids = np.where(label== np.array(names))[0]
+            images_class = images[ids[0] : ids[-1] + 1]
+            # show_dataset(images_class, label)
 
 
 
-        # croped_images = []
-        # for i, img in enumerate(images) :
-        #     img = detect_face(img, i)
-        #     if img is not None :
-        #         croped_images.append(img)
-        #     else :
-        #         del names[i]
+        croped_images = []
+        for i, img in enumerate(images) :
+            img = detect_face(img, i)
+            if img is not None :
+                croped_images.append(img)
+            else :
+                del names[i]
         
-        # for label in labels:
-        #     ids = np.where(label== np.array(names))[0]
-        #     images_class = croped_images[ids[0] : ids[-1] + 1] # select croped images for each class
-        #     # show_dataset(images_class, label)
+        for label in labels:
+            ids = np.where(label== np.array(names))[0]
+            images_class = croped_images[ids[0] : ids[-1] + 1] # select croped images for each class
+            # show_dataset(images_class, label)
 
-        # name_vec = np.array([np.where(name == labels)[0][0] for name in names])
+        name_vec = np.array([np.where(name == labels)[0][0] for name in names])
 
-        model = cv2.face.EigenFaceRecognizer_create()
+        # model = cv2.face.EigenFaceRecognizer_create()
+        model = cv2.face.LBPHFaceRecognizer_create()
 
-        # model.train(croped_images, name_vec)
+        model.train(croped_images, name_vec)
 
-        # model.save("eigenface.yml")
+        model.save("eigenface.yml")
 
         model.read("eigenface.yml")
 
         #cv2.model
 
 
-        labels = get_folder_names(dataset_folder)
+        # labels = get_folder_names(dataset_folder)
 
         path = "uploads/" + npk + extension
 
