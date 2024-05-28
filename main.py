@@ -392,7 +392,7 @@ async def websocket_endpoint(websocket: WebSocket):
             
             # if npk != label[idx] return response 400
             if npk != labels[idx]:
-                response = { "message": "NPK not found in the database"}
+                response = { "message": "NPK not found in the database", "npk":npk, "predict": labels[idx], "confidence": confidence}
                 await websocket.send_json(response)
                 break
 
