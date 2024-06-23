@@ -359,7 +359,7 @@ async def websocket_endpoint(websocket: WebSocket):
             json_data = json.loads(data)
             base64_image = json_data.get("image")
             npk = json_data.get("npk")
-            print(base64_image)
+            print("TESTING")
 
             extension = get_image_extension_from_base64(base64_image)
             print(extension)
@@ -370,43 +370,34 @@ async def websocket_endpoint(websocket: WebSocket):
 
             save_uploaded_file(base64_image, file_path) 
 
+
+
             dataset_folder = 'training-images/'
 
             model = cv2.face.EigenFaceRecognizer_create()
+            # model = cv2.face.LBPHFaceRecognizer_create()
+
 
             model.read("eigenface.yml")
 
-
-            labels = get_folder_names(dataset_folder)
+            # Desired order of folders
+            desired_order = ['202010225017', '202010225018', '202010225020', '202010225021']
+            labels = get_folder_names(dataset_folder, desired_order)
 
             path = "uploads/" + npk + extension
 
             img = cv2.imread(path)
             img = detect_face(img, 0)
 
-            if img is None:
-                await websocket.send_json({"message": "No faces detected", "contains_face": False})
-                break
-
             idx, confidence = model.predict(img)
-            
+
+            print("FOUND IDX" , idx)
 
             print("Found: ", labels[idx])
             print("Confidence: ", confidence)
 
-            # check if labels[idx] is null and confidence is null then return status code 400
-            if labels[idx] is None and confidence is None:
-                response = {"message": "", "contains_face": False}
-                await websocket.send_json(response)
 
-            
-            # if npk != label[idx] return response 400
-            if npk != labels[idx]:
-                response = { "message": "NPK not found in the database", "npk":npk, "predict": labels[idx], "confidence": confidence}
-                await websocket.send_json(response)
-                break
-
-            response = {"filename": npk, "file_path": file_path, "predict": labels[idx], "confidence": confidence}
+            response = {"message" : "Image received successfully", "npk": npk, "predict": labels[idx]}
             await websocket.send_json(response)
 
     except Exception as e:
