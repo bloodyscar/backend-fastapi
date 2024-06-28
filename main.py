@@ -320,7 +320,7 @@ async def predict_photo(file: str = Form(...), npk : str = Form(...)):
         
        
 
-        return {"filename": npk, "file_path": file_path, "predict": labels[idx], "confidence": confidence, "img_predict": "/training-images/" + labels[idx] + "_001.png"}
+        return {"filename": npk, "file_path": file_path, "predict": labels[idx], "confidence": confidence, "img_predict": "/training-images/" + labels[idx] + "/" + labels[idx] + "_001.png"}
         # return {"filename": npk, "file_path": file_path}
         
     except Exception as e:
