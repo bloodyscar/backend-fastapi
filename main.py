@@ -15,11 +15,18 @@ import cv2
 from pydantic import BaseModel
 from fastapi import WebSocket
 import json
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+ # Assuming 'training-images' is in the root directory of your FastAPI project
+images_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "training-images")
+
+# Mount the directory containing your images to a URL path
+app.mount("/training-images", StaticFiles(directory=images_directory), name="training-images")
 
 class FaceRecognitionRequest(BaseModel):
     file: str
@@ -310,8 +317,10 @@ async def predict_photo(file: str = Form(...), npk : str = Form(...)):
         # check if labels[idx] is null and confidence is null then return status code 400
         if labels[idx] is None and confidence is None:
             return {"message": "No faces detected", "contains_face": False}
+        
+       
 
-        return {"filename": npk, "file_path": file_path, "predict": labels[idx], "confidence": confidence}
+        return {"filename": npk, "file_path": file_path, "predict": labels[idx], "confidence": confidence, "img_predict": "/training-images/" + labels[idx] + "_001.png"}
         # return {"filename": npk, "file_path": file_path}
         
     except Exception as e:
